@@ -1,0 +1,171 @@
+#include <cv.h>
+#include <highgui.h>
+
+
+
+
+int main(int argc, char** argv)
+    {
+    CvCapture *cam = cvCreateCameraCapture(-1);
+    IplImage* img = cvQueryFrame(cam);
+    IplImage* aux1 = cvCreateImage(cvGetSize(img),img->depth, 3);
+    IplImage* aux2 = cvCreateImage(cvGetSize(img),IPL_DEPTH_8U,1);
+    IplImage* aux3 = cvCreateImage( cvGetSize(img), img->depth, 1 ) ;
+    IplImage* aux4 = cvCreateImage( cvGetSize(img), img->depth, 1 ) ; 
+    IplImage* aux5 = cvCreateImage( cvGetSize(img), img->depth, 1 ) ; 
+    CvMemStorage* storage = cvCreateMemStorage(0);
+    CvMemStorage* storage1 = cvCreateMemStorage(0);
+    CvMemStorage* storage2 = cvCreateMemStorage(0);
+    CvMemStorage* storage3 = cvCreateMemStorage(0);
+    CvMemStorage* storage4 = cvCreateMemStorage(0);
+    CvMemStorage* storage5 = cvCreateMemStorage(0);
+    CvMemStorage* storage6 = cvCreateMemStorage(0);
+    CvSeq* contour = 0;
+    CvSeq* lines = 0;
+    CvSeq* center =cvCreateSeq(0,sizeof(CvSeq),sizeof(CvPoint),storage2);
+    CvSeq* seq1=cvCreateSeq(0,sizeof(CvSeq),sizeof(CvPoint),storage3);
+    CvSeq* seq2=cvCreateSeq(0,sizeof(CvSeq),sizeof(CvPoint),storage4);
+    CvSeq* seq3=cvCreateSeq(0,sizeof(CvSeq),sizeof(CvPoint),storage5);
+    CvSeq* seq4=cvCreateSeq(0,sizeof(CvSeq),sizeof(CvPoint),storage6);
+    CvRect rect;
+    CvPoint p1;
+    CvPoint p2;
+    CvPoint p3[2];
+    CvPoint p4[2];
+    CvPoint* r1;
+    CvPoint* r2;
+    CvSize size=cvGetSize(img);
+    double a;
+    int dx,i,j,k,d,h,x1,x2,x3,x4,y1,y2,y3,y4,x,y;
+    float da=-1;
+    while(1)
+        {
+        img = cvQueryFrame(cam);
+        if(!img) break;
+        cvCvtColor(img, aux1, CV_BGR2HSV);
+        cvInRangeS(aux1,cvScalar(175,150,120,0), cvScalar(180,255,255,0),aux3);
+        cvInRangeS(aux1,cvScalar(0,150,120,0), cvScalar(5,255,255,0),aux4);
+        cvOr( aux3, aux4, aux5, NULL);
+        cvSmooth(aux5, aux5, CV_GAUSSIAN,3,3,3,0);
+        cvFindContours(aux5,storage,&contour,sizeof(CvContour),CV_RETR_EXTERNAL,CV_CHAIN_APPROX_SIMPLE,cvPoint(0,0));
+        for(; contour!=0; contour = contour->h_next)
+        {
+              a=cvContourArea(contour,CV_WHOLE_SEQ,0);
+              if(a>250)
+              {
+                     rect = cvBoundingRect(contour, 0);
+                     p2 = cvPoint(rect.x+(rect.width)/2,rect.y+(rect.height)/2);
+                     cvCircle(img, p2, 5, cvScalar(0,0,255,0),2,8,0);   
+                     cvSeqPush(center, &p2);
+              }
+        }
+        cvCvtColor(img,aux2,CV_RGB2GRAY);  
+        cvCanny( aux2, aux2, 50, 150, 3 );
+        lines=cvHoughLines2(aux2, storage1, CV_HOUGH_PROBABILISTIC, 1, CV_PI/2, 30, 30, 10);
+        for(i = 0; i < lines->total; i++)
+        {
+             r1 = (CvPoint*)cvGetSeqElem(lines,i);
+             x1 = r1[0].x;    
+             y1 = r1[0].y;    
+             x2 = r1[1].x;
+             y2 = r1[1].y;
+             cvLine(img, r1[0], r1[1], cvScalar(0,0,255,0), 1, 8,0 ); 
+             for( j=i+1; j < lines->total; j++ )
+             {
+                  r2 = (CvPoint*)cvGetSeqElem(lines,j);
+                  cvLine(img, r2[0], r2[1], cvScalar(255,0,255,0), 1, 8,0 ); 
+                  x3 = r2[0].x;
+                  y3 = r2[0].y;
+                  x4 = r2[1].x;
+                  y4 = r2[1].y;
+                  d = ((x1-x2) * (y3-y4)) - ((y1-y2) * (x3-x4));
+                  if (d!=0)
+                  {
+                        x=((x1*y2-y1*x2)*(x3-x4)-(x1-x2)*(x3*y4-y3*x4))/d;
+                        y=((x1*y2-y1*x2)*(y3-y4)-(y1-y2)*(x3*y4-y3*x4))/d;
+                        for(k=0;k<center->total;k++)
+                        {
+                              p1=*(CvPoint*)cvGetSeqElem(center,k);
+                              if(x>(p1.x-10) && x<(p1.x+10))
+                              {
+                                   p2=cvPoint(x,y);
+                                   if(p2.y<p1.y && p2.x<(size.width/2)) cvSeqPush(seq1, &p2);
+                                   if(p2.y>p1.y && p2.x<(size.width/2)) cvSeqPush(seq2, &p2);
+                                   if(p2.y<p1.y && p2.x>(size.width/2)) cvSeqPush(seq3, &p2);
+                                   if(p2.y>p1.y && p2.x>(size.width/2)) cvSeqPush(seq4, &p2);
+                              }
+                        }
+                  }
+             }
+        }
+        x=y=0;
+        for(h=0;h<seq1->total;h++)
+        {
+                 p1=*(CvPoint*)cvGetSeqElem(seq1,h);
+                 x=x+p1.x;
+                 y=y+p1.y;
+        }
+        if(h!=0)
+        {
+                 x=x/h; y=y/h;
+                 p3[0]=cvPoint(x,y);
+                 cvCircle(img, p3[0], 5, cvScalarAll(255),-1,8,0);
+        }
+        x=y=0;
+        for(h=0;h<seq2->total;h++)
+        {
+                 p1=*(CvPoint*)cvGetSeqElem(seq2,h);
+                 x=x+p1.x;
+                 y=y+p1.y;
+        }
+        if(h!=0)
+        {
+                x=x/h; y=y/h;
+                p3[1]=cvPoint(x,y);
+                cvCircle(img, p3[1], 5, cvScalarAll(0),-1,8,0);
+        }
+        x=y=0;
+        for(h=0;h<seq3->total;h++)
+        {
+                p1=*(CvPoint*)cvGetSeqElem(seq3,h);
+                x=x+p1.x;
+                y=y+p1.y;
+        }
+        if(h!=0)
+        {
+                x=x/h; y=y/h;
+                p4[0]=cvPoint(x,y);
+                cvCircle(img, p4[0], 5, cvScalar(255,0,0,0),-1,8,0);
+        }
+        x=y=0;
+        for(h=0;h<seq4->total;h++)
+        {
+                p1=*(CvPoint*)cvGetSeqElem(seq4,h);
+                x=x+p1.x;
+                y=y+p1.y;
+        }
+        if(h!=0)
+        {
+                x=x/h; y=y/h;
+                p4[1]=cvPoint(x,y);
+                cvCircle(img, p4[1], 5, cvScalar(0,0,255,0),-1,8,0);
+        }
+        rect=cvRect(p3[0].x,p3[0].y,p4[0].x-p3[0].x,p3[1].y-p3[0].y);
+        cvRectangle(img,cvPoint(rect.x, rect.y),cvPoint(rect.x+rect.width, rect.y+rect.height),cvScalarAll(255), 2, 6, 0);                 
+        da=rect.width/da;
+        printf("%f\n", da);
+        if (da>1) printf("aproximando\n");
+        if (da<1) printf("afastando\n");
+        da=rect.width;
+        cvShowImage("imagem", img);
+        cvClearSeq(center);
+        cvClearSeq(seq1);
+        cvClearSeq(seq2);
+        cvClearSeq(seq3);
+        cvClearSeq(seq4);
+        if( cvWaitKey(1) == 27 ) break;
+        }
+    cvReleaseCapture(&cam);
+    cvDestroyWindow("imagem");
+    }
+
